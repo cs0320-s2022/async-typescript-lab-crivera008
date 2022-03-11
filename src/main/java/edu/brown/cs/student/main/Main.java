@@ -1,25 +1,22 @@
 package edu.brown.cs.student.main;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.util.Map;
-import java.util.Set;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
-import freemarker.template.Configuration;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import spark.*;
-import spark.template.freemarker.FreeMarkerEngine;
+import org.json.JSONObject;
+import spark.ExceptionHandler;
+import spark.Request;
+import spark.Response;
+import spark.Route;
+import spark.Spark;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.List;
 
 /**
  * The Main class of our project. This is where execution begins.
- *
  */
 public final class Main {
 
@@ -28,8 +25,7 @@ public final class Main {
   /**
    * The initial method called when execution begins.
    *
-   * @param args
-   *             An array of command line arguments
+   * @param args An array of command line arguments
    */
   public static void main(String[] args) {
     new Main(args).run();
@@ -45,9 +41,9 @@ public final class Main {
     OptionParser parser = new OptionParser();
     parser.accepts("gui");
     parser.accepts("port").withRequiredArg().ofType(Integer.class)
-        .defaultsTo(DEFAULT_PORT);
+        .defaultsTo(Main.DEFAULT_PORT);
 
-    OptionSet options = parser.parse(args);
+    OptionSet options = parser.parse(this.args);
     if (options.has("gui")) {
       runSparkServer((int) options.valueOf("port"));
     }
@@ -80,6 +76,8 @@ public final class Main {
     // Allows requests from any domain (i.e., any URL). This makes development
     // easier, but it’s not a good idea for deployment.
     Spark.before((request, response) -> response.header("Access-Control-Allow-Origin", "*"));
+
+    Spark.post("/results", new ResultsHandler());
   }
 
   /**
@@ -101,23 +99,26 @@ public final class Main {
 
   /**
    * Handles requests for horoscope matching on an input
-   * 
+   *
    * @return GSON which contains the result of MatchMaker.makeMatches
    */
   private static class ResultsHandler implements Route {
     @Override
     public String handle(Request req, Response res) {
-      // TODO: Get JSONObject from req and use it to get the value of the sun, moon,
-      // and rising
-      // for generating matches
-
-      // TODO: use the MatchMaker.makeMatches method to get matches
-
-      // TODO: create an immutable map using the matches
-
-      // TODO: return a json of the suggestions (HINT: use GSON.toJson())
-      Gson GSON = new Gson();
-      return null;
+      try {
+        JSONObject jo = new JSONObject(req.body());
+        String sun = jo.getString("sun");
+        String moon = jo.getString("moon");
+        String rising = jo.getString("rising");
+        List<String> matches = MatchMaker.makeMatches(sun, moon, rising);
+        ImmutableMap<String, List<String>> matchesMap =
+            ImmutableMap.<String, List<String>>builder().put("matches", matches).build();
+        Gson GSON = new Gson();
+        return GSON.toJson(matchesMap);
+      } catch (Exception e) {
+        System.out.println("Error: " + e.getMessage());
+        return null;
+      }
     }
   }
 }
